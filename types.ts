@@ -23,6 +23,7 @@ export interface AnalysisResult {
   tempoMedio: number | null;
   satisfacaoMedia: number | null;
   tecnicoTop: { name: string; count: number } | null;
+  categoriaTop: { name: string; count: number } | null;
   chamadosPorTecnico: { name: string; value: number }[];
   chamadosPorCategoria: { name: string; value: number }[];
   statusSummary: StatusSummary[];

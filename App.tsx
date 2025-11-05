@@ -72,8 +72,10 @@ const tryParseDate = (s: string): Date | null => {
 };
 
 const analyzeData = (rows: any[]): { tickets: Ticket[], analysis: AnalysisResult } => {
+    const emptyResult = { tickets: [], analysis: { total: 0, abertos: 0, encerrados: 0, tempoMedio: null, satisfacaoMedia: null, tecnicoTop: null, categoriaTop: null, chamadosPorTecnico: [], chamadosPorCategoria: [], statusSummary: [] } };
+    
     if (!rows || rows.length === 0) {
-        return { tickets: [], analysis: { total: 0, abertos: 0, encerrados: 0, tempoMedio: null, satisfacaoMedia: null, tecnicoTop: null, chamadosPorTecnico: [], chamadosPorCategoria: [], statusSummary: [] } };
+        return emptyResult;
     }
 
     const norm = rows.map(r => {
@@ -84,16 +86,20 @@ const analyzeData = (rows: any[]): { tickets: Ticket[], analysis: AnalysisResult
         return out;
     });
 
+    const firstRow = norm[0];
+    if (!firstRow) {
+      return emptyResult;
+    }
+
     const findKey = (obj: any, keywords: string[]) => Object.keys(obj).find(k => keywords.some(kw => k.includes(kw)));
 
-    const firstRowKeys = Object.keys(norm[0]);
-    const idKey = findKey(norm[0], ['id']);
-    const tecnicoKey = findKey(norm[0], ['tecnico', 'tech', 'agent', 'técnico']);
-    const categoriaKey = findKey(norm[0], ['categoria', 'category']);
-    const statusKey = findKey(norm[0], ['status', 'estado']);
-    const abertoKey = findKey(norm[0], ['data_abertura', 'data abertura', 'open', 'aberto']);
-    const fechadoKey = findKey(norm[0], ['data_fechamento', 'data fechamento', 'close', 'fechamento']);
-    const satKey = findKey(norm[0], ['satisf', 'satisfaction', 'sat']);
+    const idKey = findKey(firstRow, ['id']);
+    const tecnicoKey = findKey(firstRow, ['tecnico', 'tech', 'agent', 'técnico']);
+    const categoriaKey = findKey(firstRow, ['categoria', 'category']);
+    const statusKey = findKey(firstRow, ['status', 'estado']);
+    const abertoKey = findKey(firstRow, ['data_abertura', 'data abertura', 'open', 'aberto']);
+    const fechadoKey = findKey(firstRow, ['data_fechamento', 'data fechamento', 'close', 'fechamento']);
+    const satKey = findKey(firstRow, ['satisf', 'satisfaction', 'sat']);
 
     let totalHours = 0;
     let countResolved = 0;
@@ -188,6 +194,7 @@ const analyzeData = (rows: any[]): { tickets: Ticket[], analysis: AnalysisResult
     }
     
     const catEntries = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+    const topCat = catEntries.length > 0 ? { name: catEntries[0][0], count: catEntries[0][1] } : null;
     const MAX_CATEGORIES_IN_CHART = 5; // Display top 4 and group the rest
     let finalCatData;
     if (catEntries.length > MAX_CATEGORIES_IN_CHART) {
@@ -206,6 +213,7 @@ const analyzeData = (rows: any[]): { tickets: Ticket[], analysis: AnalysisResult
         tempoMedio: avgHours,
         satisfacaoMedia: avgSatisfaction,
         tecnicoTop: topTech,
+        categoriaTop: topCat,
         chamadosPorTecnico: finalTechData,
         chamadosPorCategoria: finalCatData,
         statusSummary,
@@ -220,48 +228,60 @@ const App: React.FC = () => {
     const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
     const [fileName, setFileName] = useState<string | null>(null);
 
-    const processData = useCallback((data: any[], sourceName: string) => {
+    const processData = (data: any[], sourceName: string) => {
         setFileName(sourceName);
         const { tickets, analysis } = analyzeData(data);
         setTickets(tickets);
         setAnalysis(analysis);
-    }, []);
+    };
     
     useEffect(() => {
-        if (!analysis) { // Only load initial data once
-            Papa.parse(initialCsvData, {
-                header: true,
-                skipEmptyLines: true,
-                complete: (results: any) => {
-                    processData(results.data, "dados_da_planilha.csv");
-                },
-            });
-        }
-    }, [analysis, processData]);
+        Papa.parse(initialCsvData, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results: any) => {
+                processData(results.data, "dados_da_planilha.csv");
+            },
+        });
+    }, []);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (!file) return;
+        const target = event.target; // Keep a reference to the target
+
+        if (!file) {
+            target.value = ''; // Reset if user cancels file selection
+            return;
+        }
 
         const fileExtension = file.name.split('.').pop()?.toLowerCase();
-        
         const reader = new FileReader();
+
+        const onComplete = (data: any[]) => {
+            processData(data, file.name);
+            target.value = ''; // Always reset the input value to allow re-uploading the same file
+        };
+        
+        const onError = (message: string) => {
+             alert(message);
+             target.value = ''; // Also reset on error
+        };
 
         if (fileExtension === 'csv' || fileExtension === 'txt') {
             Papa.parse(file, {
                 header: true,
                 skipEmptyLines: true,
                 complete: (results: any) => {
-                    if(results.errors.length > 0){
+                    if (results.errors.length > 0) {
                         console.error('CSV parsing errors:', results.errors);
-                        alert('Ocorreram erros ao processar o arquivo CSV. Verifique o console para mais detalhes.');
+                        onError('Ocorreram erros ao processar o arquivo CSV. Verifique o console para mais detalhes.');
                         return;
                     }
-                    processData(results.data, file.name);
+                    onComplete(results.data);
                 },
                 error: (err: any) => {
                     console.error('CSV parsing error:', err);
-                    alert('Erro ao ler o arquivo: ' + err.message);
+                    onError('Erro ao ler o arquivo: ' + err.message);
                 }
             });
         } else if (fileExtension === 'json') {
@@ -271,14 +291,14 @@ const App: React.FC = () => {
                     if (typeof text === 'string') {
                         const data = JSON.parse(text);
                         if (Array.isArray(data)) {
-                            processData(data, file.name);
+                            onComplete(data);
                         } else {
-                            alert('O arquivo JSON deve conter um array de objetos.');
+                            onError('O arquivo JSON deve conter um array de objetos.');
                         }
                     }
                 } catch (err: any) {
                     console.error('JSON parsing error:', err);
-                    alert('Erro ao ler o arquivo JSON: ' + err.message);
+                    onError('Erro ao ler o arquivo JSON: ' + err.message);
                 }
             };
             reader.readAsText(file);
@@ -290,15 +310,15 @@ const App: React.FC = () => {
                     const sheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[sheetName];
                     const json = XLSX.utils.sheet_to_json(worksheet);
-                    processData(json, file.name);
+                    onComplete(json);
                 } catch (err: any) {
                     console.error('Excel parsing error:', err);
-                    alert('Erro ao ler o arquivo Excel: ' + err.message);
+                    onError('Erro ao ler o arquivo Excel: ' + err.message);
                 }
             };
             reader.readAsArrayBuffer(file);
         } else {
-            alert('Tipo de arquivo não suportado. Por favor, envie um CSV, JSON ou Excel.');
+            onError('Tipo de arquivo não suportado. Por favor, envie um CSV, JSON ou Excel.');
         }
     };
     
@@ -325,6 +345,7 @@ const App: React.FC = () => {
     const TimeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
     const TechIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>;
     const StarIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>;
+    const CategoryIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>;
 
 
     return (
@@ -338,7 +359,7 @@ const App: React.FC = () => {
                     </div>
                 ) : (
                     <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
                            <MetricCard 
                                 label="Total de Chamados" 
                                 value={analysis.total} 
@@ -353,7 +374,7 @@ const App: React.FC = () => {
                                 value={fmtHour(analysis.tempoMedio)} 
                                 icon={<TimeIcon />}
                             />
-                            <MetricCard 
+                             <MetricCard 
                                 label="Satisfação Média" 
                                 value={analysis.satisfacaoMedia ? `${analysis.satisfacaoMedia.toFixed(1)}/5` : '—'} 
                                 icon={<StarIcon />}
@@ -364,6 +385,13 @@ const App: React.FC = () => {
                                 icon={<TechIcon />}
                                 secondaryLabel="Chamados"
                                 secondaryValue={analysis.tecnicoTop?.count}
+                            />
+                             <MetricCard 
+                                label="Categoria Mais Recorrente" 
+                                value={analysis.categoriaTop?.name || '—'}
+                                icon={<CategoryIcon />}
+                                secondaryLabel="Chamados"
+                                secondaryValue={analysis.categoriaTop?.count}
                             />
                         </div>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
