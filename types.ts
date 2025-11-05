@@ -27,4 +27,6 @@ export interface AnalysisResult {
   chamadosPorTecnico: { name: string; value: number }[];
   chamadosPorCategoria: { name: string; value: number }[];
   statusSummary: StatusSummary[];
+  tecnicoMaiorSatisfacao: { name: string; avgSatisfaction: number } | null;
+  categoriaMaiorTempo: { name: string; avgHours: number } | null;
 }

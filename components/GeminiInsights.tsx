@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 interface GeminiInsightsProps {
@@ -28,26 +29,26 @@ const renderMarkdown = (text: string) => {
 
 const GeminiInsights: React.FC<GeminiInsightsProps> = ({ insights, isLoading, error, onGenerate, hasData }) => {
     return (
-        <div className="bg-white p-5 rounded-xl shadow-sm">
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm dark:border dark:border-gray-700 transition-colors duration-300">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-[#333333]">Insights com IA (Gemini)</h3>
+                <h3 className="font-bold text-gray-800 dark:text-gray-100">Insights com IA (Gemini)</h3>
                 <button 
                     onClick={onGenerate} 
                     disabled={isLoading || !hasData}
-                    className="flex items-center space-x-2 bg-[#0066CC] text-white px-3 py-2 rounded-md hover:bg-[#0052a3] transition-colors font-semibold text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    className="flex items-center space-x-2 bg-[#0066CC] text-white px-3 py-2 rounded-md hover:bg-[#0052a3] transition-colors font-semibold text-sm disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
                 >
                     <SparkleIcon />
                     <span>{isLoading ? 'Analisando...' : 'Gerar Análise'}</span>
                 </button>
             </div>
-            <div className="prose prose-sm max-w-none bg-gray-50 p-4 rounded-lg min-h-[120px]">
-                {isLoading && <p className="text-gray-500 animate-pulse">Gerando insights, por favor aguarde...</p>}
-                {error && <p className="text-[#CC3333]">{error}</p>}
+            <div className="prose prose-sm dark:prose-invert max-w-none bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg min-h-[120px]">
+                {isLoading && <p className="animate-pulse">Gerando insights, por favor aguarde...</p>}
+                {error && <p className="text-red-500 dark:text-red-400">{error}</p>}
                 {insights && <div dangerouslySetInnerHTML={{ __html: renderMarkdown(insights) }} />}
                 {!isLoading && !insights && !error && (
-                    <div className="text-center text-gray-500 py-6">
+                    <div className="text-center py-6">
                         <p>Clique em "Gerar Análise" para obter insights sobre seus dados.</p>
-                        <p className="text-xs mt-1">É necessário enviar um arquivo CSV primeiro.</p>
+                        <p className="text-xs mt-1">É necessário enviar um arquivo de dados primeiro.</p>
                     </div>
                 )}
             </div>
