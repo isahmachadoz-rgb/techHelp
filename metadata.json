@@ -1,0 +1,5 @@
+{
+  "name": "Copy of TechHelp Solutions - Dashboard de Chamados",
+  "description": "An interactive dashboard to analyze and visualize help desk ticket data from a CSV file. Upload your data to see key metrics, charts, and AI-powered insights to improve your support process.",
+  "requestFramePermissions": []
+}
